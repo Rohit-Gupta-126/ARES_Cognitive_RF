@@ -8,3 +8,7 @@ pyserial>=3.5
 
 # Deep learning framework for GRU Cognitive Brain (PyTorch is recommended, TensorFlow can also be used)
 torch>=2.0.0
+
+# WebSockets for real-time dashboard telemetry streaming
+websockets>=11.0
+
