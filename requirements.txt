@@ -1,0 +1,10 @@
+# Project A.R.E.S. Core Dependencies
+
+# Scientific computing and data manipulation
+numpy>=1.22.0
+
+# Hardware-in-the-Loop (HIL) Serial Communication with ZenTropy Key (ZEK)
+pyserial>=3.5
+
+# Deep learning framework for GRU Cognitive Brain (PyTorch is recommended, TensorFlow can also be used)
+torch>=2.0.0
