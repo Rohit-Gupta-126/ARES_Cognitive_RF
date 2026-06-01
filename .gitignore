@@ -22,6 +22,8 @@ htmlcov/
 *.pth
 *.h5
 *.pb
+*.onnx
+*.onnx.data
 
 # IDEs and Editors
 .vscode/

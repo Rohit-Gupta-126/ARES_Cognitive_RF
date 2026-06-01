@@ -84,7 +84,14 @@ def generate_simulation_data(num_steps=100000, seq_len=10, output_path="rf_datas
         X[i] = all_jammed_vectors[i : i + seq_len]
         Y[i] = all_jammed_vectors[i + seq_len]
         
-    print(f"Dataset compiled:")
+    # Shuffle dataset for uniform distribution in splits
+    indices = np.arange(num_samples)
+    np.random.seed(42)
+    np.random.shuffle(indices)
+    X = X[indices]
+    Y = Y[indices]
+        
+    print(f"Dataset compiled and shuffled:")
     print(f"X shape: {X.shape}")
     print(f"Y shape: {Y.shape}")
     
