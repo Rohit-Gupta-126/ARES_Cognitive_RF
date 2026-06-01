@@ -6,25 +6,42 @@ By employing a lightweight recurrent neural network (GRU) running in software, t
 
 ---
 
+## 📂 Project Directory Structure
+
+```
+ARES-Cognitive-RF/
+├── data/                  # Synthesized RF jamming datasets (CSVs/Numpy arrays)
+├── firmware/              # (Optional/Future) C++ TFLite code for microcontrollers
+├── hardware_bridge/       # Python pyserial scripts to interface with the ZEK
+├── models/                # PyTorch/TensorFlow GRU architectures and trained weights
+├── simulation/            # The core virtual RF ether and jammer logic
+├── dashboard/             # Next.js frontend for the Ground Control Station UI
+├── requirements.txt       # Python dependencies
+└── README.md              # High-level architecture, wiring diagram, and run instructions
+```
+
+---
+
 ## 🏗️ System Architecture
 
 The simulation currently consists of the following components:
 
-1. **Virtual RF Ether** ([ether.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/ether.py)):
-   - Simulates a 32-channel radio spectrum via the [RFEther](file:///e:/AI%20Projects/ARES_Cognitive_RF/ether.py#L3) class.
+1. **Virtual RF Ether** ([ether.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/ether.py)):
+   - Simulates a 32-channel radio spectrum via the [RFEther](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/ether.py#L3) class.
    - Calculates Signal-to-Noise Ratio (SNR) and packet collision metrics.
-2. **Virtual EW Jammer** ([jammer.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/jammer.py)):
+2. **Virtual EW Jammer** ([jammer.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/jammer.py)):
    - Implements tactical interference patterns:
-     - [SweepJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/jammer.py#L24): Jams channels sequentially with directional & step-size randomness.
-     - [BarrageJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/jammer.py#L65): Jams a wide contiguous band of channels, shifting block positions over time.
-     - [FollowerJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/jammer.py#L91): Tracks and jams the transmitter's previous channel.
-     - [RandomJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/jammer.py#L116): Randomly selects channels to jam at each step.
-3. **Dataset Generator** ([generate_dataset.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/generate_dataset.py)):
-   - Synthesizes and logs raw radio simulation data using [generate_simulation_data](file:///e:/AI%20Projects/ARES_Cognitive_RF/generate_dataset.py#L7) to compile training datasets for the GRU model.
-4. **Hardware-in-the-Loop ZEK Bridge** (Upcoming Stage 3):
-   - Establishes a serial connection to the ZenTropy Key to harvest high-entropy physical noise.
-5. **Ground Control Station Dashboard** (Upcoming Stage 4):
-   - decoupled Next.js web application showcasing real-time spectral waterfall displays and metrics via WebSockets.
+     - [SweepJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/jammer.py#L24): Sequential jamming with directional & step-size randomness.
+     - [BarrageJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/jammer.py#L65): Contiguous broadband jamming with dynamic block shifting.
+     - [FollowerJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/jammer.py#L91): Active follower tracking transmitter's last channel (t-1).
+     - [RandomJammer](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/jammer.py#L116): Selects random channels dynamically.
+3. **Dataset Generator** ([generate_dataset.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/generate_dataset.py)):
+   - Synthesizes and logs raw radio simulation data using [generate_simulation_data](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/generate_dataset.py#L7) to compile training datasets. Saved to [data/](file:///e:/AI%20Projects/ARES_Cognitive_RF/data/).
+4. **GRU Neural Network** ([model.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/model.py)):
+   - Implements [JammerPredictorGRU](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/model.py#L4) to predict jamming probabilities across channels for the next step (t+1).
+5. **Training & Evaluation Pipelines** ([train_brain.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/train_brain.py), [evaluate_brain.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/evaluate_brain.py)):
+   - Trains the GRU neural network model and saves weights/onnx exports to [models/](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/).
+   - Evaluates the model accuracy, bit-wise success rate, and latency speed benchmark.
 
 ---
 
@@ -40,13 +57,25 @@ pip install -r requirements.txt
 ```
 
 ### 📊 Dataset Generation
-To run headless simulations and compile the sequential dataset (`rf_dataset.npz`) containing past channel states ($X$) and target outcomes ($Y$):
+To run headless simulations and compile the sequential dataset (`data/rf_dataset.npz`) containing past channel states ($X$) and target outcomes ($Y$):
 ```bash
-python generate_dataset.py
+python -m simulation.generate_dataset
+```
+
+### 🧠 Model Training
+To train the neural network model and export to ONNX:
+```bash
+python -m models.train_brain
+```
+
+### 📈 Model Evaluation
+To run precision, recall, and sub-5ms CPU latency speed benchmarks on the trained model:
+```bash
+python -m models.evaluate_brain
 ```
 
 ### 🧪 Running Unit Tests
-Unit tests are implemented in [test_simulation.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/test_simulation.py). You can run them using the command line:
+You can run all unit tests in the codebase from the project root:
 ```bash
-python -m unittest test_simulation.py
+python -m unittest discover -s . -p "test_*.py"
 ```

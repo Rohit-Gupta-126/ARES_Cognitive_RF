@@ -1,10 +1,10 @@
 import numpy as np
 import random
 import os
-from ether import RFEther
-from jammer import SweepJammer, BarrageJammer, FollowerJammer, RandomJammer
+from simulation.ether import RFEther
+from simulation.jammer import SweepJammer, BarrageJammer, FollowerJammer, RandomJammer
 
-def generate_simulation_data(num_steps=100000, seq_len=10, output_path="rf_dataset.npz"):
+def generate_simulation_data(num_steps=100000, seq_len=10, output_path="data/rf_dataset.npz"):
     """
     Runs simulations using different EW jammers and generates a dataset
     of past jammed states (X) and next jammed states (Y).
@@ -102,4 +102,4 @@ def generate_simulation_data(num_steps=100000, seq_len=10, output_path="rf_datas
     return X, Y
 
 if __name__ == "__main__":
-    generate_simulation_data(num_steps=100000, seq_len=10, output_path="rf_dataset.npz")
+    generate_simulation_data(num_steps=100000, seq_len=10, output_path="data/rf_dataset.npz")

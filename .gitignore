@@ -16,6 +16,12 @@ env/
 htmlcov/
 
 # Local Datasets & Model Artifacts
+data/*.npz
+data/*.npy
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.onnx.data
 *.npz
 *.npy
 *.pt

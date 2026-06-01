@@ -2,9 +2,9 @@ import numpy as np
 import torch
 import time
 import os
-from model import JammerPredictorGRU
+from models.model import JammerPredictorGRU
 
-def evaluate_model(dataset_path="rf_dataset.npz", model_path="best_brain.pth", threshold=0.5):
+def evaluate_model(dataset_path="data/rf_dataset.npz", model_path="models/best_brain.pth", threshold=0.5):
     """
     Evaluates the trained GRU model, prints Precision, Recall, F1-score,
     and runs a speed benchmark to verify the sub-5ms latency constraint.

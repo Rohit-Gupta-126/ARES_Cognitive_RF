@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import os
-from model import JammerPredictorGRU
+from models.model import JammerPredictorGRU
 
 class RFDataset(Dataset):
     """Custom PyTorch Dataset for RF channel states."""
@@ -18,7 +18,7 @@ class RFDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.Y[idx]
 
-def train_model(dataset_path="rf_dataset.npz", model_path="best_brain.pth", onnx_path="brain.onnx",
+def train_model(dataset_path="data/rf_dataset.npz", model_path="models/best_brain.pth", onnx_path="models/brain.onnx",
                 hidden_dim=64, num_layers=2, batch_size=128, lr=0.001, max_epochs=20, patience=3):
     """
     Loads dataset, splits it into train/val, trains the GRU model,

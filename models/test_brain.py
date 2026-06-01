@@ -2,8 +2,8 @@ import unittest
 import torch
 import numpy as np
 import os
-from model import JammerPredictorGRU
-from train_brain import RFDataset
+from models.model import JammerPredictorGRU
+from models.train_brain import RFDataset
 
 class TestBrainModel(unittest.TestCase):
     def test_model_shapes(self):
@@ -42,7 +42,7 @@ class TestBrainModel(unittest.TestCase):
 
     def test_onnx_export_flow(self):
         # Test that we can export a model to ONNX without syntax errors
-        onnx_test_path = "test_brain.onnx"
+        onnx_test_path = "models/test_brain.onnx"
         if os.path.exists(onnx_test_path):
             os.remove(onnx_test_path)
             

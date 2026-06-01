@@ -1,9 +1,9 @@
 import unittest
 import numpy as np
 import os
-from ether import RFEther
-from jammer import SweepJammer, BarrageJammer, FollowerJammer, RandomJammer
-from generate_dataset import generate_simulation_data
+from simulation.ether import RFEther
+from simulation.jammer import SweepJammer, BarrageJammer, FollowerJammer, RandomJammer
+from simulation.generate_dataset import generate_simulation_data
 
 class TestRFEther(unittest.TestCase):
     def test_initialization(self):
@@ -91,7 +91,7 @@ class TestJammers(unittest.TestCase):
 
 class TestDatasetGeneration(unittest.TestCase):
     def test_generation_dimensions(self):
-        output_file = "test_rf_dataset.npz"
+        output_file = "data/test_rf_dataset.npz"
         if os.path.exists(output_file):
             os.remove(output_file)
             
