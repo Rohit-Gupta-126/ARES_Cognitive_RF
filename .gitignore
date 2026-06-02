@@ -34,6 +34,8 @@ models/*.onnx.data
 *.png
 data/*.csv
 models/*.png
+!models/dqn_training.png
+!models/model_performance.png
 
 # IDEs and Editors
 .vscode/
