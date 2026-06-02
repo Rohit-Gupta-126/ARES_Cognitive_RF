@@ -30,6 +30,10 @@ models/*.onnx.data
 *.pb
 *.onnx
 *.onnx.data
+*.csv
+*.png
+data/*.csv
+models/*.png
 
 # IDEs and Editors
 .vscode/

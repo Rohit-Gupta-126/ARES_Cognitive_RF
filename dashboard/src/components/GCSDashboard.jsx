@@ -1,348 +1,511 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 
+/* ─── Helpers ─────────────────────────────────────────────── */
+const CHANNELS = Array.from({ length: 32 }, (_, i) => i);
+const MAX_HISTORY = 18;
+
+function PDRGauge({ pdr }) {
+  const r = 24;
+  const circ = 2 * Math.PI * r;
+  const dash = (pdr / 100) * circ;
+  const color = pdr >= 90 ? "#34d399" : pdr >= 70 ? "#fbbf24" : "#fb7185";
+
+  return (
+    <div className="pdr-gauge-ring">
+      <svg width="60" height="60" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="5" />
+        <circle
+          cx="30" cy="30" r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="5"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          style={{ filter: `drop-shadow(0 0 4px ${color})`, transition: "stroke-dasharray 0.4s ease" }}
+        />
+      </svg>
+      <div className="pdr-gauge-value" style={{ color }}>{pdr.toFixed(0)}%</div>
+    </div>
+  );
+}
+
+function JammerBadge({ type }) {
+  if (!type || type === "N/A") return <span style={{ color: "var(--text-tertiary)", fontFamily: "JetBrains Mono, monospace", fontSize: "0.8rem" }}>—</span>;
+  return <span className={`jammer-badge jammer-${type}`}>{type.toUpperCase()}</span>;
+}
+
+function MetricCard({ label, value, subtext, tag, accentColor, accentBg, accentBorder }) {
+  return (
+    <div
+      className="metric-card"
+      style={{
+        "--card-accent": accentColor,
+        "--card-color": accentColor,
+        "--card-tag-bg": accentBg,
+      }}
+    >
+      <div className="metric-card-label">{label}</div>
+      <div className="metric-card-value">{value}</div>
+      <div className="metric-card-footer">
+        <div className="metric-card-subtext">{subtext}</div>
+        {tag && <div className="metric-card-tag" style={{ background: accentBg, color: accentColor, borderColor: accentBorder }}>{tag}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main Component ─────────────────────────────────────── */
 export default function GCSDashboard() {
   const [connected, setConnected] = useState(false);
   const [telemetry, setTelemetry] = useState(null);
-  const [waterfallHistory, setWaterfallHistory] = useState([]);
-  const [stats, setStats] = useState({
-    totalPackets: 0,
-    collisions: 0,
-    successes: 0,
-  });
-  
+  const [history, setHistory] = useState([]);
+  const [stats, setStats] = useState({ total: 0, success: 0, collisions: 0 });
   const wsRef = useRef(null);
-  const maxHistoryLength = 15;
+  const reconnectTimer = useRef(null);
+  const connectWSRef = useRef(null);
 
-  useEffect(() => {
-    // Connect to WebSocket server running in run_hil_loop.py
-    const connectWS = () => {
-      console.log("Connecting to ARES Telemetry WebSocket...");
-      const ws = new WebSocket("ws://127.0.0.1:8765");
-      wsRef.current = ws;
+  const connectWS = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-      ws.onopen = () => {
-        setConnected(true);
-        console.log("WebSocket Connection established!");
-      };
+    const ws = new WebSocket("ws://127.0.0.1:8765");
+    wsRef.current = ws;
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setTelemetry(data);
-
-          // Update statistics running totals
-          setStats((prev) => {
-            const nextSuccesses = prev.successes + (data.success ? 1 : 0);
-            const nextCollisions = prev.collisions + (data.success ? 0 : 1);
-            return {
-              totalPackets: data.step + 1,
-              successes: nextSuccesses,
-              collisions: nextCollisions,
-            };
-          });
-
-          // Add to waterfall history (prepend to scroll downwards)
-          setWaterfallHistory((prev) => {
-            const newRow = {
-              step: data.step,
-              tx_channel: data.tx_channel,
-              jam_channels: data.jam_channels,
-              jammed_vector: data.jammed_vector,
-            };
-            const updated = [newRow, ...prev];
-            if (updated.length > maxHistoryLength) {
-              return updated.slice(0, maxHistoryLength);
-            }
-            return updated;
-          });
-        } catch (err) {
-          console.error("Error parsing WebSocket telemetry message:", err);
-        }
-      };
-
-      ws.onclose = () => {
-        setConnected(false);
-        console.log("WebSocket Connection closed. Retrying in 3 seconds...");
-        setTimeout(connectWS, 3000);
-      };
-
-      ws.onerror = (err) => {
-        console.error("WebSocket connection encountered error:", err);
-        ws.close();
-      };
+    ws.onopen = () => {
+      setConnected(true);
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     };
 
-    connectWS();
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setTelemetry(data);
 
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+        setStats((prev) => ({
+          total: data.step + 1,
+          success: prev.success + (data.success ? 1 : 0),
+          collisions: prev.collisions + (data.success ? 0 : 1),
+        }));
+
+        setHistory((prev) => {
+          const next = [
+            { step: data.step, tx: data.tx_channel, jam: data.jam_channels, success: data.success },
+            ...prev,
+          ];
+          return next.slice(0, MAX_HISTORY);
+        });
+      } catch {}
     };
+
+    // Use ref to avoid accessing connectWS before it is fully declared
+    ws.onclose = () => {
+      setConnected(false);
+      reconnectTimer.current = setTimeout(() => connectWSRef.current?.(), 3000);
+    };
+
+    ws.onerror = () => ws.close();
   }, []);
 
-  // Helpers for determining waterfall cell classes
-  const getCellClass = (row, colIndex) => {
-    const isTx = row.tx_channel === colIndex;
-    const isJammed = row.jam_channels.includes(colIndex);
+  useEffect(() => {
+    // Sync ref after render so onclose always calls the latest version
+    connectWSRef.current = connectWS;
+    connectWS();
+    return () => {
+      wsRef.current?.close();
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    };
+  }, [connectWS]);
 
-    if (isTx && isJammed) return "waterfall-cell collision";
-    if (isTx) return "waterfall-cell tx";
-    if (isJammed) return "waterfall-cell jammed";
-    return "waterfall-cell idle";
-  };
+  /* ── Derived State ── */
+  const pdr = telemetry?.pdr ?? 100.0;
+  const isHW = telemetry?.entropy_source === "HARDWARE_ENTROPY";
+  const activeJammer = telemetry?.active_jammer ?? "N/A";
+  const safeChannelCount = telemetry?.safe_channels?.length ?? 32;
+  const currentStep = telemetry?.step ?? 0;
+  const txChannel = telemetry?.tx_channel;
+  const lastSuccess = telemetry?.success;
+  const agentMode = telemetry?.agent_mode ?? "GRU+ZEK";
+  const isDQN = agentMode === "DQN+ZEK";
+  const topKChannels = new Set(telemetry?.top_k_channels ?? []);
+  const qValues = telemetry?.q_values ?? null;
 
-  const channelsList = Array.from({ length: 32 }, (_, i) => i);
-  const pdr = telemetry ? telemetry.pdr : 100.0;
-  const isZekConnected = telemetry ? telemetry.is_zek_connected : false;
-  const entropySource = telemetry ? telemetry.entropy_source : "SOFTWARE_ENTROPY";
-  const activeJammer = telemetry ? telemetry.active_jammer : "N/A";
+  function getCellClass(row, ch) {
+    const isTx = row.tx === ch;
+    const isJam = row.jam.includes(ch);
+    if (isTx && isJam) return "wf-cell wf-collision";
+    if (isTx) return "wf-cell wf-tx";
+    if (isJam) return "wf-cell wf-jammed";
+    return "wf-cell wf-idle";
+  }
 
   return (
-    <>
-      {/* 1. HeaderHUD */}
-      <header className="gcs-header">
-        <div className="gcs-title-group">
-          <h1>PROJECT A.R.E.S.</h1>
-          <p>Autonomous Radio Evasion System — Ground Control Station</p>
-        </div>
-        
-        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-          {/* WebSocket Connection Badge */}
-          <span className={`status-badge ${connected ? "online" : "offline"}`}>
-            <span style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              backgroundColor: connected ? "var(--color-safe)" : "var(--color-jammed)",
-              display: "inline-block",
-              boxShadow: connected ? "0 0 8px var(--color-safe)" : "0 0 8px var(--color-jammed)"
-            }}></span>
-            {connected ? "GCS Online" : "GCS Offline"}
-          </span>
+    <div className="app-shell">
 
-          {/* Cryptographic Entropy Trust Badge */}
+      {/* ── Top Nav ── */}
+      <nav className="top-nav">
+        <div className="nav-brand">
+          <div className="nav-logo-mark">AR</div>
+          <div>
+            <div className="nav-title">Project A.R.E.S.</div>
+            <div className="nav-subtitle">Autonomous Radio Evasion System — GCS</div>
+          </div>
+        </div>
+
+        <div className="nav-center">
+          <div className="nav-center-dot" />
+          <span>LIVE TELEMETRY</span>
+          {telemetry && (
+            <>
+              <span style={{ color: "var(--border)" }}>•</span>
+              <span>STEP {String(currentStep).padStart(5, "0")}</span>
+            </>
+          )}
+        </div>
+
+        <div className="nav-badges">
+          <span className={`badge ${connected ? "badge-online" : "badge-offline"}`}>
+            <span className="badge-dot" />
+            {connected ? "GCS Online" : "Disconnected"}
+          </span>
           {connected && telemetry && (
-            <span className={`status-badge ${entropySource === "HARDWARE_ENTROPY" ? "hil-hw" : "hil-sw"}`}>
-              {entropySource === "HARDWARE_ENTROPY" ? "⚡ HW-ZEK Cryptographic Trust" : "⚠️ SW-OS Fallback Mode"}
+            <span className={`badge ${isDQN ? "badge-hw" : "badge-sw"}`}>
+              <span className="badge-dot" />
+              {isDQN ? "DQN · RL Engine" : "GRU · Pattern Engine"}
+            </span>
+          )}
+          {connected && telemetry && (
+            <span className={`badge ${isHW ? "badge-hw" : "badge-sw"}`}>
+              <span className="badge-dot" />
+              {isHW ? "HW-ZEK Trust" : "SW-OS Fallback"}
             </span>
           )}
         </div>
-      </header>
+      </nav>
 
-      {/* 2. Main Dashboard Layout */}
-      <main className="dashboard-container">
-        
-        {/* Warning Alerts Banner */}
-        {connected && telemetry && !telemetry.success && (
-          <div className="col-span-12" style={{
-            background: "rgba(244, 63, 94, 0.15)",
-            border: "1px solid var(--color-jammed)",
-            borderRadius: "8px",
-            padding: "15px",
-            textAlign: "center",
-            boxShadow: "0 0 15px rgba(244, 63, 94, 0.2)",
-            animation: "pulse-red 1.5s infinite"
-          }}>
-            <h3 style={{ color: "var(--color-jammed)", fontWeight: "bold", fontSize: "1.1rem" }}>
-              ⚠️ EW SIGNAL JAMMING COLLISION DETECTED ON CHANNEL {telemetry.tx_channel}
-            </h3>
-            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "4px" }}>
-              Adversarial follower jammer successfully intercepted frequency node. Executing adaptive hop.
-            </p>
+      {/* ── Alert Banners ── */}
+      {connected && telemetry && !telemetry.success && (
+        <div className="alert-banner danger">
+          <span className="alert-banner-icon">⚡</span>
+          <div className="alert-banner-content">
+            <strong>EW COLLISION DETECTED — Channel {txChannel}</strong>
+            <p>Adversarial jammer intercepted transmission. Adaptive frequency hop initiated.</p>
           </div>
-        )}
-
-        {connected && telemetry && entropySource === "SOFTWARE_ENTROPY" && (
-          <div className="col-span-12" style={{
-            background: "rgba(245, 158, 11, 0.15)",
-            border: "1px solid var(--color-warning)",
-            borderRadius: "8px",
-            padding: "15px",
-            textAlign: "center",
-            boxShadow: "0 0 15px rgba(245, 158, 11, 0.2)",
-            animation: "pulse-yellow 2s infinite"
-          }}>
-            <h3 style={{ color: "var(--color-warning)", fontWeight: "bold", fontSize: "1.1rem" }}>
-              ⚠️ ZENTROPY KEY DISCONNECTED — OPERATIONAL RESILIENCY FALLBACK
-            </h3>
-            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "4px" }}>
-              Hardware cryptographic root of trust un-available. Seeding frequency hopper with cryptographically secure software entropy (`os.urandom`).
-            </p>
+        </div>
+      )}
+      {connected && telemetry && !isHW && (
+        <div className="alert-banner warning">
+          <span className="alert-banner-icon">⚠</span>
+          <div className="alert-banner-content">
+            <strong>ZENTROPY KEY DISCONNECTED — Software Entropy Mode Active</strong>
+            <p>Cryptographic root of trust unavailable. Seeding with os.urandom() fallback.</p>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Column 1: Left Stats and Spectrum Waterfall (Span 8) */}
-        <section className="col-span-8" style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
-          
-          {/* Metrics Cards row */}
-          <div className="metrics-row">
-            <div className="cyber-panel metric-card">
-              <div className="metric-label">Packet Delivery Ratio</div>
-              <div className="metric-value" style={{ 
-                color: pdr >= 90 ? "var(--color-safe)" : pdr >= 75 ? "var(--color-warning)" : "var(--color-jammed)" 
-              }}>
-                {pdr.toFixed(1)}%
-              </div>
-              <div className="metric-subtext">HIL Evasion Success Rate</div>
+      {/* ── Main ── */}
+      <main className="main-content">
+
+        {/* ── Metric Cards Row ── */}
+        <div className="grid-metrics">
+          <MetricCard
+            label="Packet Delivery Ratio"
+            value={`${pdr.toFixed(1)}%`}
+            subtext="HIL evasion success rate"
+            tag={pdr >= 90 ? "NOMINAL" : pdr >= 70 ? "DEGRADED" : "CRITICAL"}
+            accentColor={pdr >= 90 ? "var(--safe)" : pdr >= 70 ? "var(--warning)" : "var(--danger)"}
+            accentBg={pdr >= 90 ? "var(--safe-dim)" : pdr >= 70 ? "var(--warning-dim)" : "var(--danger-dim)"}
+            accentBorder={pdr >= 90 ? "rgba(52,211,153,0.2)" : pdr >= 70 ? "rgba(251,191,36,0.2)" : "rgba(251,113,133,0.2)"}
+          />
+
+          <div
+            className="metric-card"
+            style={{ "--card-accent": "var(--tx)", "--card-color": "var(--tx)" }}
+          >
+            <div className="metric-card-label">Active EW Jammer</div>
+            <div style={{ marginTop: 8 }}>
+              <JammerBadge type={activeJammer} />
             </div>
-
-            <div className="cyber-panel metric-card">
-              <div className="metric-label">Active EW Jammer</div>
-              <div className="metric-value" style={{ 
-                color: activeJammer === "sweep" ? "var(--color-tx)" : 
-                       activeJammer === "barrage" ? "var(--color-collision)" : 
-                       activeJammer === "follower" ? "var(--color-jammed)" : "var(--text-muted)",
-                textTransform: "uppercase",
-                fontSize: "1.5rem"
-              }}>
-                {activeJammer}
-              </div>
-              <div className="metric-subtext">Threat Jamming Strategy</div>
-            </div>
-
-            <div className="cyber-panel metric-card">
-              <div className="metric-label">Link Statistics</div>
-              <div className="metric-value">
-                {stats.successes} / {stats.totalPackets}
-              </div>
-              <div className="metric-subtext">Successful Hops vs Attempts</div>
-            </div>
-
-            <div className="cyber-panel metric-card">
-              <div className="metric-label">Collisions Avoided</div>
-              <div className="metric-value" style={{ color: stats.collisions > 0 ? "var(--color-warning)" : "var(--color-safe)" }}>
-                {stats.collisions}
-              </div>
-              <div className="metric-subtext">Total Intercepted Packets</div>
+            <div className="metric-card-footer">
+              <div className="metric-card-subtext">Current threat strategy</div>
             </div>
           </div>
 
-          {/* Real-time Spectrum Waterfall Card */}
-          <div className="cyber-panel">
-            <h2 style={{ fontSize: "1.2rem", fontWeight: "bold", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "10px" }}>
-              ⚡ Scrolling 32-Channel RF Waterfall
-            </h2>
-            
-            <div className="waterfall-grid-container">
-              {/* Channel Numbers Header */}
-              <div className="waterfall-row-container" style={{ marginBottom: "6px" }}>
-                <div className="waterfall-row-label">Channel</div>
-                <div className="waterfall-grid">
-                  {channelsList.map((ch) => (
-                    <div key={ch} className="waterfall-header-cell">{ch}</div>
-                  ))}
+          <MetricCard
+            label="Link Statistics"
+            value={`${stats.success} / ${stats.total}`}
+            subtext="Successful hops vs attempts"
+            tag="LIVE"
+            accentColor="var(--cyan)"
+            accentBg="var(--cyan-dim)"
+            accentBorder="rgba(34,211,238,0.2)"
+          />
+
+          <MetricCard
+            label="Safe Channels"
+            value={safeChannelCount}
+            subtext={`${32 - safeChannelCount} channels blocked by AI`}
+            tag={`${stats.collisions} COLLISIONS`}
+            accentColor={stats.collisions > 5 ? "var(--warning)" : "var(--safe)"}
+            accentBg={stats.collisions > 5 ? "var(--warning-dim)" : "var(--safe-dim)"}
+            accentBorder={stats.collisions > 5 ? "rgba(251,191,36,0.2)" : "rgba(52,211,153,0.2)"}
+          />
+        </div>
+
+        {/* ── Main Grid: Waterfall + Sidebar ── */}
+        <div className="grid-main">
+
+          {/* ── Left: Waterfall ── */}
+          <div className="panel">
+            <div className="panel-header">
+              <div className="panel-title">
+                <span className="panel-title-icon">▦</span>
+                32-Channel RF Spectrum Waterfall
+              </div>
+              {telemetry && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="step-tag">T-0 = Step {currentStep}</span>
+                  <span
+                    style={{
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: lastSuccess ? "var(--safe)" : "var(--danger)",
+                      boxShadow: `0 0 8px ${lastSuccess ? "var(--safe)" : "var(--danger)"}`,
+                    }}
+                  />
                 </div>
-              </div>
-
-              {/* Waterfall History Rows */}
-              {waterfallHistory.length === 0 ? (
-                <div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-muted)", fontFamily: "Share Tech Mono, monospace" }}>
-                  WAITING FOR SIMULATION STREAM...
-                </div>
-              ) : (
-                waterfallHistory.map((row) => (
-                  <div key={row.step} className="waterfall-row-container">
-                    <div className="waterfall-row-label">T-{telemetry.step - row.step}</div>
-                    <div className="waterfall-grid">
-                      {channelsList.map((ch) => (
-                        <div
-                          key={ch}
-                          className={getCellClass(row, ch)}
-                          title={`Step: ${row.step}, Channel: ${ch}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))
               )}
             </div>
 
-            <div style={{ display: "flex", gap: "25px", marginTop: "20px", fontSize: "0.8rem", color: "var(--text-muted)", justifyContent: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "2px", backgroundColor: "var(--color-tx)" }}></span>
-                <span>Transmitter Active (TX)</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "2px", backgroundColor: "var(--color-jammed)" }}></span>
-                <span>EW Jammer Active</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "2px", backgroundColor: "var(--color-collision)" }}></span>
-                <span>Packet Collision</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "12px", height: "12px", borderRadius: "2px", backgroundColor: "#0f172a", border: "1px solid rgba(255,255,255,0.05)" }}></span>
-                <span>Idle Channel</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Column 2: Right AI Predictive Brain (Span 4) */}
-        <section className="col-span-4" style={{ display: "flex", flexDirection: "column", gap: "30px" }}>
-          
-          <div className="cyber-panel" style={{ height: "100%" }}>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: "bold", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "10px" }}>
-              🧠 GRU Channel Jamming Probabilities
-            </h2>
-            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "6px" }}>
-              AI Model predictions $P(Jam)$ for the next step. Node targets with values $P \ge 0.5$ are avoided.
-            </p>
-
-            {telemetry ? (
-              <div className="prob-bars-grid">
-                {/* 50% Threshold line Overlay */}
-                <div className="threshold-line-overlay" style={{ bottom: "50%" }}>
-                  <div className="threshold-line-overlay-label">Evasion Threshold (0.50)</div>
+            <div className="panel-body">
+              {history.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">📡</div>
+                  Awaiting telemetry stream…
                 </div>
-
-                {channelsList.map((ch) => {
-                  const prob = telemetry.prediction_probs[ch];
-                  const isJammed = prob >= 0.5;
-                  const isTx = telemetry.tx_channel === ch;
-                  
-                  let barClass = "prob-bar-vertical safe";
-                  if (isTx) barClass = "prob-bar-vertical tx-active";
-                  else if (isJammed) barClass = "prob-bar-vertical jammed";
-
-                  return (
-                    <div key={ch} className="prob-bar-col">
-                      <div
-                        className={barClass}
-                        style={{ height: `${prob * 100}%` }}
-                        title={`Channel ${ch}: ${(prob * 100).toFixed(1)}% probability`}
-                      />
-                      <span className="prob-bar-axis-label">{ch}</span>
+              ) : (
+                <div className="waterfall-wrapper">
+                  <div className="waterfall-inner">
+                    {/* Channel Header */}
+                    <div className="waterfall-header">
+                      <div className="waterfall-header-spacer" />
+                      <div className="waterfall-header-cells">
+                        {CHANNELS.map((ch) => (
+                          <div key={ch} className="waterfall-header-cell">{ch}</div>
+                        ))}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ padding: "80px 0", textAlign: "center", color: "var(--text-muted)", fontFamily: "Share Tech Mono, monospace" }}>
-                AWAITING METRICS...
-              </div>
-            )}
 
-            <div style={{ marginTop: "25px", background: "rgba(2, 6, 23, 0.4)", borderRadius: "8px", padding: "12px", border: "1px solid rgba(255,255,255,0.03)" }}>
-              <h4 style={{ fontSize: "0.85rem", fontWeight: "bold", fontFamily: "Share Tech Mono, monospace", color: "var(--color-tx)" }}>
-                SYSTEM DECISION LOG:
-              </h4>
-              <div style={{ fontSize: "0.75rem", fontFamily: "Share Tech Mono, monospace", color: "var(--text-muted)", marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div>&gt; Brain identified {telemetry ? telemetry.safe_channels.length : 32} safe frequency nodes.</div>
-                <div>&gt; ZEK seed squeezed for channel selection.</div>
-                <div>
-                  &gt; Hopped to node: <span style={{ color: "var(--color-tx)", fontWeight: "bold" }}>{telemetry ? telemetry.tx_channel : "N/A"}</span>.
+                    {/* Rows */}
+                    <div className="waterfall-rows">
+                      {history.map((row, idx) => (
+                        <div key={row.step} className="waterfall-row">
+                          <div className={`waterfall-row-label ${idx === 0 ? "current" : ""}`}>
+                            {idx === 0 ? "NOW" : `T-${idx}`}
+                          </div>
+                          <div className="waterfall-cells">
+                            {CHANNELS.map((ch) => (
+                              <div
+                                key={ch}
+                                className={getCellClass(row, ch)}
+                                title={`Step ${row.step} | Ch ${ch}${row.tx === ch ? " [TX]" : ""}${row.jam.includes(ch) ? " [JAM]" : ""}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Legend */}
+                    <div className="waterfall-legend">
+                      <div className="legend-item">
+                        <div className="legend-swatch" style={{ background: "var(--tx)", boxShadow: "0 0 6px var(--tx-glow)" }} />
+                        Transmitter Active (TX)
+                      </div>
+                      <div className="legend-item">
+                        <div className="legend-swatch" style={{ background: "var(--danger)", boxShadow: "0 0 6px var(--danger-glow)" }} />
+                        EW Jammer Active
+                      </div>
+                      <div className="legend-item">
+                        <div className="legend-swatch" style={{ background: "var(--collision)", boxShadow: "0 0 6px var(--collision-glow)" }} />
+                        Packet Collision
+                      </div>
+                      <div className="legend-item">
+                        <div className="legend-swatch" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)" }} />
+                        Idle Channel
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>&gt; Channel status: {telemetry ? (telemetry.success ? "CLEAR - TRANSMISSION OK" : "JAMMED - COLLISION") : "STANDBY"}</div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Right Sidebar ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* PDR + Step Summary */}
+            <div className="panel">
+              <div className="panel-header">
+                <div className="panel-title">
+                  <span className="panel-title-icon">◎</span>
+                  PDR Gauge
+                </div>
+              </div>
+              <div className="panel-body" style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                <PDRGauge pdr={pdr} />
+                <div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 800, color: pdr >= 90 ? "var(--safe)" : pdr >= 70 ? "var(--warning)" : "var(--danger)", letterSpacing: "-0.5px" }}>
+                    {pdr.toFixed(2)}%
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>Packet Delivery Ratio</div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-tertiary)", marginTop: 6, fontFamily: "JetBrains Mono, monospace" }}>
+                    {stats.success} OK · {stats.collisions} FAIL · {stats.total} TOTAL
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Decision Engine Panel — DQN Q-Value heatmap OR GRU P(Jam) bars */}
+            <div className="panel" style={{ flex: 1 }}>
+              <div className="panel-header">
+                <div className="panel-title">
+                  <span className="panel-title-icon">◈</span>
+                  {isDQN ? "DQN Q-Value Heatmap" : "GRU Jamming Probability"}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    fontFamily: "JetBrains Mono, monospace",
+                    fontSize: "0.62rem",
+                    padding: "2px 7px",
+                    borderRadius: 4,
+                    background: isDQN ? "rgba(34,211,238,0.1)" : "rgba(167,139,250,0.1)",
+                    color: isDQN ? "var(--cyan)" : "var(--violet)",
+                    border: `1px solid ${isDQN ? "rgba(34,211,238,0.2)" : "rgba(167,139,250,0.2)"}`,
+                  }}>
+                    {isDQN ? `TOP-${topKChannels.size} SAFE ZONE` : "P(JAM) / CH"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="panel-body">
+                {!telemetry ? (
+                  <div className="empty-state">
+                    <div className="empty-state-icon">🧠</div>
+                    Awaiting AI predictions…
+                  </div>
+                ) : (
+                  <>
+                    <div className="prob-chart">
+                      {/* Threshold / reference line */}
+                      <div className="prob-threshold-line" style={{ bottom: "50%" }}>
+                        <div className="prob-threshold-label">
+                          {isDQN ? "Q-value (norm 0.5)" : "0.50 threshold"}
+                        </div>
+                      </div>
+                      <div className="prob-chart-base" />
+
+                      {CHANNELS.map((ch) => {
+                        const dispVal = telemetry.prediction_probs[ch]; // normalised 0-1
+                        const isTx      = ch === txChannel;
+                        const isTopK    = topKChannels.has(ch);
+                        const isDangerous = !isDQN && dispVal >= 0.5;
+
+                        // DQN mode: cyan = Safe Zone, blue = TX, grey = out-of-zone
+                        // GRU mode: green = safe, red = predicted jammed, blue = TX
+                        let barColor, barShadow;
+                        if (isTx) {
+                          barColor = "var(--tx)";
+                          barShadow = "0 0 8px var(--tx-glow)";
+                        } else if (isDQN && isTopK) {
+                          barColor = "var(--cyan)";
+                          barShadow = "0 0 8px var(--cyan-glow)";
+                        } else if (isDQN) {
+                          barColor = "rgba(255,255,255,0.08)";
+                          barShadow = "none";
+                        } else if (isDangerous) {
+                          barColor = "var(--danger)";
+                          barShadow = "0 0 6px var(--danger-glow)";
+                        } else {
+                          barColor = "var(--safe)";
+                          barShadow = "none";
+                        }
+
+                        const tooltipText = isDQN
+                          ? `Ch ${ch}: Q=${qValues ? qValues[ch].toFixed(2) : "?"} ${isTopK ? "[SAFE ZONE]" : ""}${isTx ? " [TX]" : ""}`
+                          : `Ch ${ch}: P(Jam)=${(dispVal * 100).toFixed(1)}%${isTx ? " [TX]" : ""}`;
+
+                        return (
+                          <div key={ch} className="prob-col" title={tooltipText}>
+                            <div
+                              style={{
+                                width: "100%",
+                                height: `${Math.max(dispVal * 100, 2)}%`,
+                                borderRadius: "2px 2px 0 0",
+                                transition: "height 0.18s ease, background 0.18s ease",
+                                background: barColor,
+                                boxShadow: barShadow,
+                                minHeight: 2,
+                              }}
+                            />
+                            {ch % 8 === 0 && <span className="prob-axis-label">{ch}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Legend — adapts to agent mode */}
+                    <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
+                      {isDQN ? [
+                        { color: "var(--cyan)",   label: `Safe Zone (top-${topKChannels.size})` },
+                        { color: "var(--tx)",     label: "TX Channel" },
+                        { color: "rgba(255,255,255,0.08)", label: "Out of Zone", border: "1px solid rgba(255,255,255,0.06)" },
+                      ] : [
+                        { color: "var(--safe)",   label: "Safe" },
+                        { color: "var(--danger)", label: "Jammed" },
+                        { color: "var(--tx)",     label: "TX Channel" },
+                      ].map(({ color, label, border }) => (
+                        <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.68rem", color: "var(--text-secondary)" }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: color, border: border ?? "none", flexShrink: 0 }} />
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Decision Log */}
+                    <div className="decision-log">
+                      <div className="decision-log-title">System Decision Log</div>
+                      <div className="log-line">
+                        <span className="log-prompt">›</span>
+                        <span>
+                          {isDQN
+                            ? <>{"Agent computed "}<span className="log-value">{topKChannels.size}-channel Safe Zone</span></>  
+                            : <>{"Brain identified "}<span className="log-value">{safeChannelCount}</span>{" safe channels"}</>}
+                        </span>
+                      </div>
+                      <div className="log-line">
+                        <span className="log-prompt">›</span>
+                        <span>ZEK SHAKE-128 selected from Safe Zone</span>
+                      </div>
+                      <div className="log-line">
+                        <span className="log-prompt">›</span>
+                        <span>Hopped to node <span className="log-value">CH-{txChannel ?? "—"}</span></span>
+                      </div>
+                      <div className={`log-line ${lastSuccess ? "log-success" : "log-error"}`}>
+                        <span className="log-prompt">›</span>
+                        <span>Status: <span className="log-value">{lastSuccess ? "CLEAR — TX OK" : "JAMMED — COLLISION"}</span></span>
+                      </div>
+                      <div className="log-line">
+                        <span className="log-prompt">›</span>
+                        <span>Engine: <span className="log-value">{agentMode}</span></span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
-        </section>
-
+        </div>
       </main>
-    </>
+    </div>
   );
 }

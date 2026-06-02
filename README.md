@@ -42,6 +42,14 @@ The simulation currently consists of the following components:
 5. **Training & Evaluation Pipelines** ([train_brain.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/train_brain.py), [evaluate_brain.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/evaluate_brain.py)):
    - Trains the GRU neural network model and saves weights/onnx exports to [models/](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/).
    - Evaluates the model accuracy, bit-wise success rate, and latency speed benchmark.
+6. **RL Environment Wrapper** ([rl_environment.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/simulation/rl_environment.py)):
+   - Encapsulates the `RFEther` and dynamic jammers into an OpenAI-Gym-style Markov Decision Process (MDP) for trial-and-error agent training.
+7. **DQN Cognitive Agent** ([dqn_agent.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/dqn_agent.py)):
+   - Implements a deep Q-network (`QNetwork`) and experience replay memory (`ReplayBuffer`) for reinforcement learning under dynamic EW jamming.
+8. **DQN Training Arena** ([train_rl.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/train_rl.py)):
+   - Manages DQN training runs across thousands of episodes, logs metrics to CSV, and generates convergence visualizations.
+9. **RL Unit Tests** ([test_rl.py](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/test_rl.py)):
+   - Comprehensive test suite validating states, rewards, buffers, and training updates.
 
 
 ---
@@ -122,4 +130,44 @@ You can run all unit tests in the codebase from the project root:
 ```bash
 python -m unittest discover -s . -p "test_*.py"
 ```
+Or run the Stage 5 reinforcement learning unit tests specifically:
+```bash
+python -m unittest models.test_rl
+```
+
+---
+
+## 🧠 Stage 5: Autonomous Reinforcement Learning (DQN)
+
+A.R.E.S. Stage 5 upgrades the system from a supervised jammer predictor to an autonomous Deep Q-Network (DQN) agent that learns entirely by trial-and-error in the simulated RF ether.
+
+### 1. Markov Decision Process (MDP) Definition
+* **State Space ($S_t$)**: A flattened `(321,)` vector consisting of the last 10 timesteps of 32-channel binary jammed states `(10, 32)` plus the normalized transmitter channel `(1,)`.
+* **Action Space ($A_t$)**: A discrete integer `0–31` representing the target channel to hop to.
+* **Reward Function ($R_t$)**:
+  * **Success (+10)**: Clear packet delivery (no collision on the selected channel).
+  * **Collision (-100)**: Jammer active on selected channel.
+  * **Hop Tax (-1)**: Penalty for frequency changes, encouraging channel persistence when safe.
+
+### 2. DQN Agent & Network Architecture
+* **Policy Network**: `Linear(321) -> Linear(512) -> LayerNorm -> ReLU -> Linear(256) -> ReLU -> Linear(128) -> ReLU -> Linear(32)`.
+* **Replay Buffer**: Fast pre-allocated NumPy storage with memory-sharing `torch.from_numpy()` tensors for high-throughput training.
+* **Double Q-Network updates**: policy network trained via Adam, target network updated every 500 steps.
+* **$\epsilon$-greedy Exploration**: linearly decays from `1.0` to `0.05` over the first 10,000 steps.
+
+### 3. ZEK Cryptographic Fusion (Hybrid DQN-ZEK Mode)
+The DQN outputs Q-value predictions for all 32 channels. Rather than taking the absolute argmax (which is deterministic and easily tracked by follower jammers), A.R.E.S. builds a **Safe Zone** of the top-K highest Q-value channels. This set is passed to the physical or mock ZenTropy Key (ZEK) to cryptographically select the final channel via SHAKE-128 entropy.
+
+### 4. Running DQN Training & Running the HIL Loop
+* **To train the DQN Brain**:
+  ```bash
+  python -m models.train_rl
+  ```
+  Saves checkpoints to `models/dqn_brain.pth` and training metric plots to `models/dqn_training.png`.
+* **To run the HIL Loop with the trained DQN Brain**:
+  ```bash
+  python run.py --dqn-model models/dqn_brain.pth
+  ```
+  Observe the dynamic Ground Control Station (GCS) telemetry dashboard updating with real-time Q-value heatmaps and active Safe Zone highlights at `http://localhost:3000`.
+
 

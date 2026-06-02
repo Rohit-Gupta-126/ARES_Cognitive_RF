@@ -6,13 +6,12 @@ numpy>=1.22.0
 # Hardware-in-the-Loop (HIL) Serial Communication with ZenTropy Key (ZEK)
 pyserial>=3.5
 
-# Deep learning framework for GRU Cognitive Brain (PyTorch is recommended, TensorFlow can also be used)
+# Deep learning framework — covers both Stage 3 (GRU brain) and Stage 5 (DQN agent)
+# CUDA acceleration is automatic on systems with an NVIDIA GPU (RTX 2050 supported)
 torch>=2.0.0
 
-# WebSockets for real-time dashboard telemetry streaming
+# WebSockets for real-time GCS telemetry streaming
 websockets>=11.0
 
-# Data plotting and visualization
+# Data plotting and visualization (training curves, model performance)
 matplotlib>=3.5.0
-
-
