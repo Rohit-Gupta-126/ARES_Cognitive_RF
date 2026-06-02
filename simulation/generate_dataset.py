@@ -54,13 +54,13 @@ def generate_simulation_data(num_steps=100000, seq_len=10, output_path="data/rf_
                 tx_channel = (tx_channel + 1) % num_channels
             # if static, tx_channel remains the same
             
+            # Get jammer decision using previous history (1-step delay)
+            jam_channels = jammer.get_jammed_channels(step, tx_history)
+            
             tx_history.append(tx_channel)
             # Keep tx_history size bounded to prevent infinite growth
             if len(tx_history) > 10:
                 tx_history.pop(0)
-                
-            # Get jammer decision
-            jam_channels = jammer.get_jammed_channels(step, tx_history)
             
             # Step the simulation
             result = ether.step(tx_channel, jam_channels)

@@ -19,7 +19,7 @@ export default function GCSDashboard() {
     // Connect to WebSocket server running in run_hil_loop.py
     const connectWS = () => {
       console.log("Connecting to ARES Telemetry WebSocket...");
-      const ws = new WebSocket("ws://localhost:8765");
+      const ws = new WebSocket("ws://127.0.0.1:8765");
       wsRef.current = ws;
 
       ws.onopen = () => {

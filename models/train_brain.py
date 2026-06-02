@@ -1,9 +1,19 @@
+import sys
+import os
+
+# Reconfigure console output to UTF-8 on Windows to handle emojis/Unicode in PyTorch/ONNX logging
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import os
 from models.model import JammerPredictorGRU
 
 class RFDataset(Dataset):

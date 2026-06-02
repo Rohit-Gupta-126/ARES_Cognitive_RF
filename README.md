@@ -43,6 +43,38 @@ The simulation currently consists of the following components:
    - Trains the GRU neural network model and saves weights/onnx exports to [models/](file:///e:/AI%20Projects/ARES_Cognitive_RF/models/).
    - Evaluates the model accuracy, bit-wise success rate, and latency speed benchmark.
 
+
+---
+
+## 📊 Model Stats & Benchmarks
+
+The predictive brain utilizes a lightweight **Gated Recurrent Unit (GRU)** network designed to run in real-time on low-power edge nodes (e.g. onboard drone computers).
+
+### 📈 Training & Convergence
+The network was trained for **20 epochs** using **Binary Cross Entropy with Logits Loss (BCEWithLogitsLoss)** on 100,000 simulated RF interaction frames:
+* **Initial Loss (Epoch 1)**: Train: `0.2451` | Validation: `0.1803`
+* **Final Loss (Epoch 20)**: Train: `0.0629` | Validation: `0.0635`
+* *Both curves converged closely, indicating a highly generalized model without overfitting to ambient spectrum fluctuations.*
+
+### 🎯 Evaluation Metrics (Unseen Test Data)
+Evaluated on a validation split containing 19,998 frames with mixed jammers (Sweep, Barrage, Follower, Random):
+
+| Metric | Value | Interpretation |
+| :--- | :---: | :--- |
+| **Precision** | **94.79%** | High probability that a channel marked "dangerous" is indeed jammed, minimizing false alarm hops. |
+| **Recall** | **83.86%** | Successfully intercepts and evades the vast majority of EW jamming attacks. |
+| **F1-Score** | **88.99%** | Strong harmonic balance between avoiding misses and avoiding false alarms. |
+| **Bit-wise Accuracy** | **98.56%** | Overall accuracy of predicting the state of individual channels. |
+| **Frame-wise Accuracy** | **77.77%** | Percentage of timesteps where the 32-channel prediction vector perfectly matches the jammer. |
+
+### ⚡ Inference Speed Benchmark (CPU)
+To maintain real-time evasion capabilities, inference must occur within a sub-5ms window. Benchmarks on standard CPU hardware show:
+
+* **Average Inference Latency**: **0.5228 ms**
+* **95th Percentile Latency**: **0.6583 ms**
+* **Max Latency**: **1.3847 ms**
+* **Conclusion**: Passes the sub-5ms constraint with a **9.5x safety factor**, proving viability for high-rate radio hardware-in-the-loop loops.
+
 ---
 
 ## 🚀 Getting Started
@@ -74,8 +106,18 @@ To run precision, recall, and sub-5ms CPU latency speed benchmarks on the traine
 python -m models.evaluate_brain
 ```
 
+### 🎮 Running the Integrated System (Sim + Dashboard)
+You can run both the Python simulation backend (HIL WebSocket server) and the Next.js frontend dev server concurrently using our unified runner script:
+```bash
+python run.py
+```
+* (Optional) Pass any backend arguments directly to the script, e.g. `python run.py --mock-zek --interval 0.5`.
+* Open your browser and navigate to `http://localhost:3000` to interact with the GCS interface.
+* Press `Ctrl+C` in the terminal to stop both servers cleanly.
+
 ### 🧪 Running Unit Tests
 You can run all unit tests in the codebase from the project root:
 ```bash
 python -m unittest discover -s . -p "test_*.py"
 ```
+

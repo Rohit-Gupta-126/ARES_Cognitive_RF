@@ -1,3 +1,14 @@
+import sys
+import os
+
+# Reconfigure console output to UTF-8 on Windows to handle emojis/Unicode logging
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import numpy as np
 import torch
 import argparse
@@ -6,8 +17,6 @@ import json
 import asyncio
 import websockets
 import threading
-import sys
-import os
 
 # Adjust path to import from root workspace directories
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -150,14 +159,14 @@ def run_evasion_loop(args):
                 # Select top 3 channels with the lowest probability of jamming
                 safe_channels = np.argsort(probs)[:3].tolist()
             
+            # E. Get EW Jammer targets (1-step delay)
+            jam_channels = jammer.get_jammed_channels(step, tx_history)
+
             # D. Query ZEK for true random channel selection from the safe list
             tx_channel = bridge.get_random_channel(safe_channels)
             tx_history.append(tx_channel)
             if len(tx_history) > 10:
                 tx_history.pop(0)
-                
-            # E. Get EW Jammer targets
-            jam_channels = jammer.get_jammed_channels(step, tx_history)
             
             # F. Step the RF Ether environment
             result = ether.step(tx_channel, jam_channels)
@@ -215,7 +224,7 @@ def run_evasion_loop(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ARES Cognitive RF Evasion HIL Simulation Loop")
-    parser.add_argument("--host", type=str, default="localhost", help="WebSocket server host")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="WebSocket server host")
     parser.add_argument("--port", type=int, default=8765, help="WebSocket server port")
     parser.add_argument("--model-path", type=str, default="models/best_brain.pth", help="Path to trained PyTorch GRU model")
     parser.add_argument("--zek-port", type=str, default=None, help="Specific COM port for ZEK serial interface")
