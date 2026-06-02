@@ -62,6 +62,8 @@ This brain is trained on recorded simulation logs to recognize jammer behaviors 
 * **Recall Rate**: **83.8%** of actual jamming attacks successfully intercepted and avoided.
 * **Inference Speed**: **0.52 ms** on CPU (well below the 5ms real-time limit, allowing rapid frequency hops).
 
+![GRU Model Performance](models/model_performance.png)
+
 ---
 
 ## 🧠 Brain Option 2: The Self-Learning Agent (DQN)
@@ -72,6 +74,8 @@ This brain does not need any pre-recorded data. It learns dynamically by interac
 * **Training Time**: ~21 minutes on CPU (1,000,000 steps).
 * **Success Rate**: Improves from ~91% (random) to **`97.2%` Packet Delivery Ratio (PDR)** as the agent masters evasion.
 * **Self-Correction**: Learns to stay on safe channels to avoid the "hop tax" unless a jammer is detected.
+
+![DQN Training Convergence](models/dqn_training.png)
 
 ---
 
