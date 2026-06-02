@@ -50,6 +50,37 @@ The simulation currently consists of the following components:
 
 The predictive brain utilizes a lightweight **Gated Recurrent Unit (GRU)** network designed to run in real-time on low-power edge nodes (e.g. onboard drone computers).
 
+```mermaid
+graph TD
+    classDef metric fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#f8fafc;
+    classDef highlight fill:#1e1b4b,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
+    classDef success fill:#022c22,stroke:#10b981,stroke-width:2px,color:#f8fafc;
+
+    Input["RF Spectrum History<br>(10 steps × 32 channels)"] --> GRU["JammerPredictorGRU<br>(2 Layers, 64 Hidden Units)"]
+    GRU --> Logits["Logits Output Layer<br>(32-dim Linear Node)"]
+    Logits --> Sigmoid["Sigmoid Activation<br>(P(Jam) per channel)"]
+    Sigmoid --> Threshold{"Threshold Check<br>(P < 0.50)"}
+
+    Threshold -- "Safe List (P < 0.5)" --> Hopper["ZEK Random Selection<br>(True Evasion Hop)"]
+    Threshold -- "Blocked List (P ≥ 0.5)" --> Masked["Adversarial Evasion Mask"]
+
+    subgraph "Model Evasion & Performance Stats"
+        M1["Precision: 94.79%<br>(Low False Alarm Rate)"]
+        M2["Recall: 83.86%<br>(Evades Active Jammers)"]
+        M3["F1-Score: 88.99%<br>(Harmonic Balance)"]
+        M4["CPU Latency: 0.52 ms<br>(Sub-5ms Edge Constraint)"]
+    end
+
+    Hopper --> M1
+    Hopper --> M2
+    Hopper --> M3
+    Hopper --> M4
+
+    class M1,M2,M3 metric;
+    class M4 success;
+    class GRU,Threshold highlight;
+```
+
 ### 📈 Training & Convergence
 The network was trained for **20 epochs** using **Binary Cross Entropy with Logits Loss (BCEWithLogitsLoss)** on 100,000 simulated RF interaction frames:
 * **Initial Loss (Epoch 1)**: Train: `0.2451` | Validation: `0.1803`
