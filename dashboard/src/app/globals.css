@@ -1,0 +1,409 @@
+/* A.R.E.S. Tactical UI Styling System */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg-color: #070b19;
+  --panel-bg: rgba(17, 24, 39, 0.65);
+  --border-color: rgba(6, 182, 212, 0.15);
+  --border-glow: 0 0 15px rgba(6, 182, 212, 0.15);
+  
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  
+  --color-safe: #10b981;
+  --color-jammed: #f43f5e;
+  --color-tx: #06b6d4;
+  --color-collision: #a855f7;
+  --color-warning: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: 'Outfit', sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(6, 182, 212, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(244, 63, 94, 0.04) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-tx);
+}
+
+/* Glassmorphism Panel Container */
+.cyber-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), var(--border-glow);
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+.cyber-panel:hover {
+  border-color: rgba(6, 182, 212, 0.25);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(6, 182, 212, 0.2);
+}
+
+/* Header */
+.gcs-header {
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(2, 6, 23, 0.8);
+  backdrop-filter: blur(8px);
+  padding: 16px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.gcs-title-group h1 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #06b6d4 30%, #a855f7 90%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+.gcs-title-group p {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* Badges */
+.status-badge {
+  font-family: 'Share Tech Mono', monospace;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+}
+
+.status-badge.online {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--color-safe);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+}
+
+.status-badge.offline {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--color-jammed);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.1);
+  animation: pulse-red 2s infinite;
+}
+
+.status-badge.hil-hw {
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--color-tx);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.1);
+}
+
+.status-badge.hil-sw {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.1);
+  animation: pulse-yellow 2.5s infinite;
+}
+
+/* Animations */
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-yellow {
+  0%, 100% { opacity: 1; border-color: rgba(245, 158, 11, 0.3); }
+  50% { opacity: 0.6; border-color: rgba(245, 158, 11, 0.8); }
+}
+
+/* Dashboard Grid Layout */
+.dashboard-container {
+  max-width: 1400px;
+  margin: 30px auto;
+  padding: 0 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 30px;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-container {
+    grid-template-columns: repeat(12, 1fr);
+  }
+  .col-span-8 { grid-column: span 8; }
+  .col-span-4 { grid-column: span 4; }
+  .col-span-12 { grid-column: span 12; }
+}
+
+/* Stat Cards */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.metric-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.metric-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 8px;
+}
+
+.metric-subtext {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Spectrum Waterfall */
+.waterfall-grid-container {
+  overflow-x: auto;
+  margin-top: 15px;
+}
+
+.waterfall-grid {
+  display: grid;
+  grid-template-columns: repeat(32, minmax(14px, 1fr));
+  gap: 3px;
+  min-width: 500px;
+}
+
+.waterfall-header-cell {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding-bottom: 6px;
+}
+
+.waterfall-cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: #0f172a;
+  transition: background 0.15s ease;
+}
+
+.waterfall-cell.tx {
+  background: var(--color-tx);
+  box-shadow: 0 0 10px var(--color-tx);
+}
+
+.waterfall-cell.jammed {
+  background: var(--color-jammed);
+  box-shadow: 0 0 10px var(--color-jammed);
+}
+
+.waterfall-cell.collision {
+  background: var(--color-collision);
+  box-shadow: 0 0 12px var(--color-collision);
+}
+
+.waterfall-cell.idle {
+  background: #0f172a;
+}
+
+/* Waterfall History Grid Labels */
+.waterfall-row-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+.waterfall-row-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  width: 50px;
+  flex-shrink: 0;
+  text-align: right;
+  margin-right: 12px;
+}
+
+/* probability bars */
+.probability-bars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.prob-bar-row {
+  display: flex;
+  align-items: center;
+}
+
+.prob-channel-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.prob-bar-bg {
+  flex-grow: 1;
+  height: 12px;
+  background: #0f172a;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.prob-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.prob-bar-fill.safe {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.prob-bar-fill.jammed {
+  background: linear-gradient(90deg, #f43f5e 0%, #e11d48 100%);
+  box-shadow: 0 0 5px var(--color-jammed);
+}
+
+.prob-value-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  width: 50px;
+  text-align: right;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+/* Threshold line for Probability Chart */
+.prob-bar-threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(244, 63, 94, 0.4);
+  border-left: 1px dashed rgba(244, 63, 94, 0.8);
+  z-index: 10;
+}
+
+/* Grid layout for Probability Section (32 channels side-by-side) */
+.prob-bars-grid {
+  display: flex;
+  align-items: flex-end;
+  height: 200px;
+  gap: 4px;
+  margin-top: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 5px;
+  position: relative;
+}
+
+.prob-bar-col {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.prob-bar-vertical {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.2s ease, background 0.2s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.prob-bar-vertical.safe {
+  background: var(--color-safe);
+}
+
+.prob-bar-vertical.jammed {
+  background: var(--color-jammed);
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
+}
+
+.prob-bar-vertical.tx-active {
+  background: var(--color-tx);
+  box-shadow: 0 0 10px var(--color-tx);
+}
+
+.prob-bar-axis-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.threshold-line-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed rgba(244, 63, 94, 0.6);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.threshold-line-overlay-label {
+  position: absolute;
+  right: 0;
+  transform: translateY(-100%);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--color-jammed);
+  background: rgba(7, 11, 25, 0.8);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(244, 63, 94, 0.2);
+}
